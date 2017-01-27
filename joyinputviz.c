@@ -6,21 +6,19 @@
 #include "mtconf.h"
 #include "MGInputEvents.h"
 
-volatile uint8_t *joydevbase;
-
-typedef struct sdljoystick
+typedef struct sdljoystick //Local joystick info and state
 {
   uint8_t naxes;
   uint8_t nbuttons;
   uint8_t nhats;
   uint8_t nballs;
-  uint32_t buttons;
-  int16_t axes[8];
-  uint8_t hats[8];
-  int16_t balls[16];
+  uint32_t buttons;//Bitset for button state
+  int16_t axes[8];//Should cover all reasonable joysticks
+  uint8_t hats[8];//Never seen more than one on a device
+  int16_t balls[16];//Enough for 8 balls
 } sdljoystick;
 
-typedef struct joydevctl
+typedef struct joydevctl //simplifies access to control registers
 {
   uint8_t enabled;
   uint8_t events;
@@ -29,7 +27,7 @@ typedef struct joydevctl
   uint8_t queuesize;
 } joydevctl;
 
-typedef struct joydevinfo
+typedef struct joydevinfo //simplifies access to device info
 {
   uint32_t axes;
   uint32_t buttons;
@@ -37,7 +35,7 @@ typedef struct joydevinfo
   uint32_t balls;
 } joydevinfo;
 
-typedef struct drawcmd
+typedef struct drawcmd //Helps with draw commands on the GPU
 {
   uint32_t cmd;
   uint32_t mode;
@@ -52,74 +50,78 @@ int main(void){
   sys_detect_devs();
   sys_conf_init();
 
+  //Set up helpful pointers
   volatile joydevctl *joydev = (void*)mg_devinfo.base_addrs[mg_joyinput_devids[0]];
-  joydevbase = (void*)mg_devinfo.base_addrs[mg_joyinput_devids[0]];
+  volatile uint8_t *joydevbase = (void*)mg_devinfo.base_addrs[mg_joyinput_devids[0]];
   volatile joydevinfo *joyinfo = (void*)&joydevbase[0x100];
   volatile uint32_t *evdata = (void*)&joydevbase[0x200];
-  joydev->events = 1;
   joydev->enabled = 1;
-  int i, cmdi = 0;
+  joydev->events = 1;
+  int i, cmdi = 0; //two counters
 
-  sdljoystick js;
-  MGJoyInputEvent ev;
-  js.naxes = (joyinfo->axes & 0xff000000) >> 24;
-  js.nbuttons = (joyinfo->buttons & 0xff000000) >> 24;
-  js.nhats = (joyinfo->hats & 0xff000000) >> 24;
-  js.nballs = (joyinfo->balls & 0xff000000) >> 24;
+  sdljoystick js; //Joystick info and state
+  MGJoyInputEvent ev;//To store an event
+  //Gather information about the joystick
+  js.naxes = joyinfo->axes >> 24; //shifting to get the axes count
+  js.nbuttons = joyinfo->buttons >> 24;
+  js.nhats = joyinfo->hats >> 24;
+  js.nballs = joyinfo->balls >> 24;
 
+  //initialise the graphics device
   mg_gfx_ctl[1] = 640;
   mg_gfx_ctl[2] = 400;
   mg_gfx_ctl[0] = 1;
-  mg_gfx_ctl[3] = 5;
-  volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5;
-  for (i = 0; i < 100; i++){
-    gfxcmd[i] = 0x0;
-  }
+  mg_gfx_ctl[3] = 5;//Start the command buffer after the pallete and button texture
+  volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5; //command buffer
 
+  //We put all the colours we use at the start
   volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
-  pallette[0] = 0x00000000U;
-  pallette[1] = 0x00ffffffU;
-  pallette[2] = 0x00550000U;
-  pallette[3] = 0x0000aa00U;
+  pallette[0] = 0x00000000U;//black
+  pallette[1] = 0x00ffffffU;//white
+  pallette[2] = 0x00550000U;//red
+  pallette[3] = 0x0000aa00U;//green
 
-  //setup background
+  //First command clears the screen to black
   gfxcmd[cmdi++] = 0x206;
-  gfxcmd[cmdi++] = 0x20;
-  gfxcmd[cmdi++] = 100;
+  gfxcmd[cmdi++] = 0x20;//32 bit colour
+  gfxcmd[cmdi++] = 0; //texture starts at 0
   gfxcmd[cmdi++] = 1;
-  gfxcmd[cmdi++] = 1 << 16 | 1;
-  gfxcmd[cmdi++] = 0;
-  gfxcmd[cmdi++] = 640 << 16 | 400;
+  gfxcmd[cmdi++] = 1 << 16 | 1; //texture size is 1x1
+  gfxcmd[cmdi++] = 0; //position is 0,0
+  gfxcmd[cmdi++] = 640 << 16 | 400;//Stretch 1 pixel to screen size
 
-  gfxcmd[cmdi++] = 0x102;
-  gfxcmd[cmdi++] = 2;
-  gfxcmd[cmdi++] = 2;
+  gfxcmd[cmdi++] = 0x102;//set a pallete of red/green
+  gfxcmd[cmdi++] = 2;//of size 2
+  gfxcmd[cmdi++] = 2;//starting at offset 2
 
+  //Location to store button data as a texture
   volatile uint32_t *gfx_buttondata = (uint32_t*)mg_gfx_fb + 4;
   volatile drawcmd *buttoncmd = (drawcmd*)&gfxcmd[cmdi];
   buttoncmd->cmd = 0x206;
-  buttoncmd->mode = 0x10001;
-  buttoncmd->offset = 4;
-  buttoncmd->scanlen = 32;
-  buttoncmd->size = js.nbuttons << 16 | 1;
-  buttoncmd->pos = 0;
-  buttoncmd->dsize = 640 << 16 | 20;
-  // ;
-  volatile drawcmd *axescmd =(drawcmd*)&gfxcmd[cmdi+7];
-  volatile drawcmd *hatscmd =&axescmd[8];
-  for (i = 0; i < 8; i++)
-    axescmd[i].cmd = 0x306;
+  buttoncmd->mode = 0x10001;//use 1 bit red/green pallete
+  buttoncmd->offset = 4; //Location of button state
+  buttoncmd->scanlen = 32; //32 bits per line
+  buttoncmd->size = js.nbuttons << 16 | 1; //only show existing buttons
+  buttoncmd->pos = 0; //start at the origin
+  buttoncmd->dsize = 640 << 16 | 20;//Stretch the bar to screen width
 
+  //Set some commands up for axes/hats
+  volatile drawcmd *axescmd = (drawcmd*)&gfxcmd[cmdi+7];
+  volatile drawcmd *hatscmd = &axescmd[8];
+  for (i = 0; i < 8; i++)
+    axescmd[i].cmd = 0x306;//Make the commands nops
+  //Axes stretch a single pixel into a white bar
   for (i = 0; i < js.naxes; i++){
     axescmd[i].cmd = 0x206;
-    axescmd[i].mode = 0x20;
-    axescmd[i].offset = 1;
+    axescmd[i].mode = 0x20;//32-bit colour
+    axescmd[i].offset = 1;//Locatin of white value
     axescmd[i].scanlen = 1;
     axescmd[i].size = 1 << 16 | 1;
     axescmd[i].pos = ((i * 80) + 20) << 16 | 40;
-    axescmd[i].dsize = 40 << 16;
+    axescmd[i].dsize = 40 << 16 | 128;//centre the bar at the start
     js.axes[i] = 0;
   }
+  //Hats show their state with a white block
   for (i = 0; i < js.nhats; i++){
     hatscmd[i].cmd = 0x206;
     hatscmd[i].mode = 0x20;
@@ -131,25 +133,24 @@ int main(void){
     js.hats[i] = 0;
   }
 
-  uint32_t *evbuff = (void *)&ev;
+  uint32_t *evbuff = (void *)&ev; //To use as a buffer for event data
   while (1){
     if (joydev->queuesize > 0){
-      evbuff[0] = evdata[0];
-      evbuff[1] = evdata[1];
-      evbuff[2] = evdata[2];
+      // evbuff[0] = evdata[0];
+      evbuff[1] = evdata[1];//Technically this is the only part we need
+      // evbuff[2] = evdata[2];
       if (ev.type == MG_JOYBUTTON && ev.num == 0 && ev.value == 0)
-        break;
+        break;//exit the loop if we release button 0
       switch (ev.type){
-        case MG_JOYAXISMOTION:
+        case MG_JOYAXISMOTION://Axis value is mapped to [0,255] for display
           js.axes[ev.num] = ev.value;
-          uint32_t temp = (ev.value + 32768) >> 8;
-          axescmd[ev.num].dsize = 40 << 16 | temp;
+          axescmd[ev.num].dsize = 40 << 16 | (ev.value + 32768) >> 8;
           break;
         case MG_JOYHATMOTION:
           js.hats[ev.num] = ev.value;
-          if (ev.value == 0){
+          if (ev.value == 0){//hat in origin
             hatscmd[ev.num].pos = (ev.num * 80) + 30 << 16 | 330;
-          } else {
+          } else {//Hat state is decoded to position the square
             int x = 1, y = 1;
             if ((ev.value & MG_HAT_UP) != 0)
               y = 0;
@@ -162,18 +163,18 @@ int main(void){
             hatscmd[ev.num].pos = (ev.num * 80) + 10 + (x * 20) << 16 | 310 + (y * 20);
           }
           break;
-        case MG_JOYBUTTON:
+        case MG_JOYBUTTON://Button state is updated using masking
           if (ev.value == 0)
             js.buttons &= ~(1L << ev.num);
           else
             js.buttons |= (1L << ev.num);
-          *gfx_buttondata = js.buttons;
+          *gfx_buttondata = js.buttons; //Copy new data to framebuffer
           break;
         case MG_JOYBALLMOTION://No ball visualisation
         default:
           break;
       }
-      joydev->queuesize = 1;
+      joydev->queuesize = 1;//pop the queue
     }
   }
   joydev->enabled = 0;
