@@ -13,7 +13,7 @@ Recommended config: ``config_sdljoy0.ini``.
 Shows a point that chases the mouse cursor and shows the relative movement since the last update, use when the first joyinput device is a mouse.
 Recommended config: ``config_sdlmouse.ini``.
 ###``multijoytest.c``
-Moves dots around the screen for up to four connected joyinput devices based on the values from the first two absolute axes.
+Moves dots around the screen for up to four connected joyinput devices based on the values from the first two absolute axes. If a mouse is connected it chases the cursor.
 Recommended config: ``config_dualjs.ini`` or ``config_dualjsandmouse.ini``.
 ###``pong.c``
 Crude pong implementation that uses the graphics drivers and joyinput to show game potential, could be greatly improved.
@@ -24,6 +24,9 @@ Recommended config: ``config_uartjslinux.ini``.
 ###``uartjsviznew.c``
 Uses the joyinput events through the UART to do visualise the joystick.
 Recommended config: ``config_uartjsnew.ini``.
+###``joyinputviznoint.c``
+Visualises the joystick data from the first joyinput device, but does not use interrupt functionality and waits a while instead. This can, for instance, be used to visualise replay functionality.
+Recommended config: ``config_recordjs0.ini`` followed by ``config_replayjs0.ini``.
 
 ##Configs
 ###``config_sdljoy0.ini``

@@ -5,9 +5,9 @@
 
 #include "mtconf.h"
 
-volatile uint8_t *uartctl;
+volatile uint8_t *uartctl; //points to the uart base
 
-typedef struct jsev
+typedef struct jsev //Linux joystick API event
 {
     uint32_t time;
     int16_t value;
@@ -15,7 +15,7 @@ typedef struct jsev
     uint8_t num;
 } jsev;
 
-typedef struct joystick
+typedef struct joystick //joystick info and state
 {
   uint8_t nbuttons;
   uint8_t naxes;
@@ -34,6 +34,9 @@ typedef struct drawcmd
   uint32_t dsize;
 }drawcmd;
 
+//Check for and copy an event if available
+//Data is copied into the provided event
+//returns 0 when there is none, 1 otherwise
 int get_event(jsev *event){
   if ((uartctl[5] & 1) == 0)
     return 0;
@@ -62,9 +65,7 @@ int main(void){
   mg_gfx_ctl[3] = 5;
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5;
   int i, cmdi = 0;
-  for (i = 0; i < 100; i++){
-    gfxcmd[i] = 0x0;
-  }
+
   volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
   pallette[0] = 0x00000000U;
   pallette[1] = 0x00ffffffU;
@@ -74,7 +75,7 @@ int main(void){
   //setup background
   gfxcmd[cmdi++] = 0x206;
   gfxcmd[cmdi++] = 0x20;
-  gfxcmd[cmdi++] = 100;
+  gfxcmd[cmdi++] = 0;
   gfxcmd[cmdi++] = 1;
   gfxcmd[cmdi++] = 1 << 16 | 1;
   gfxcmd[cmdi++] = 0;
@@ -93,18 +94,18 @@ int main(void){
   buttoncmd->size = 1 << 16 | 1;
   buttoncmd->pos = 0;
   buttoncmd->dsize = 640 << 16 | 20;
-  // ;
+
   volatile drawcmd *axescmd =(drawcmd*)&gfxcmd[cmdi+7];
   while (1){
     if (get_event(&ev)){
       output_string("Got event: ",1);
       if (ev.type == 1 && ev.num == 0 && ev.value == 0)
-        break;
-      if (ev.type > 2){
-        if (ev.type == 0x81){
+        break;//exit when button 0 is released
+      if (ev.type > 2){ //Catches the initial events
+        if (ev.type == 0x81){//Button event
           js.nbuttons = ev.num + 1;
           buttoncmd->size = js.nbuttons << 16 | 1;
-        } else {
+        } else { //axis event, this creates a new draw command
           js.naxes = ev.num + 1;
           axescmd[ev.num].cmd = 0x206;
           axescmd[ev.num].mode = 0x20;
@@ -114,7 +115,7 @@ int main(void){
           axescmd[ev.num].pos = ((ev.num * 80) + 20) << 16 | 40;
           axescmd[ev.num].dsize = 40 << 16;
         }
-        ev.type -= 0x80;
+        ev.type -= 0x80; //convert it to a normal event for handling
       }
       if (ev.type == 1){
         output_string("Button ",1);

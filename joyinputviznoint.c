@@ -46,6 +46,11 @@ typedef struct drawcmd //Helps with draw commands on the GPU
   uint32_t dsize;
 }drawcmd;
 
+void delaytime(int i){//Wastes some time
+  volatile int t;
+  for (t = 0; t < i; t++){}
+}
+
 int main(void){
   sys_detect_devs();
   sys_conf_init();
@@ -55,12 +60,8 @@ int main(void){
   volatile uint8_t *joydevbase = (void*)mg_devinfo.base_addrs[mg_joyinput_devids[0]];
   volatile joydevinfo *joyinfo = (void*)&joydevbase[0x100];
   volatile uint32_t *evdata = (void*)&joydevbase[0x200];
-  volatile long *notif = (void*)mg_devinfo.channels;
   joydev->enabled = 1;
   joydev->events = 1;
-  notif[0] = 1; //enable channel
-  joydev->channel = 0;
-  joydev->notifications = 1;
   int i, cmdi = 0; //two counters
 
   joystickdata js; //Joystick info and state
@@ -149,7 +150,6 @@ int main(void){
   int loop = 1;
   uint32_t *evbuff = (void *)&ev; //To use as a buffer for event data
   while (loop){
-    notif[0]; //wait for events
     while (joydev->queuesize){
       evbuff[0] = evdata[0];
       evbuff[1] = evdata[1];//Technically this is the only part we need
@@ -193,8 +193,8 @@ int main(void){
           break;
       }
     }
+    delaytime(1000);//waste some time
   }
-  joydev->notifications = 0;
   joydev->enabled = 0;
   return 0;
 }

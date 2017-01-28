@@ -4,34 +4,11 @@
 #include <stddef.h>
 
 #include "mtconf.h"
+#include "MGInputEvents.h"
 
-volatile uint8_t *uartctl;
+volatile uint8_t *uartctl; //points to the uart base
 
-enum eventtypes
-{
-    MG_JOYAXISMOTION = 0x01,
-    MG_JOYBUTTON,
-    MG_JOYHATMOTION,
-    MG_JOYBALLMOTION,
-    MG_DEVICEATTACHED,
-    MG_DEVICEREMOVED
-};
-
-typedef struct MGJoyInputEvent
-{
-    uint32_t timestamp;
-    uint8_t type;
-    uint8_t num;
-    int16_t value;
-    int16_t value2;
-} MGJoyInputEvent;
-
-#define SDL_HAT_UP          0x01
-#define SDL_HAT_RIGHT       0x02
-#define SDL_HAT_DOWN        0x04
-#define SDL_HAT_LEFT        0x08
-
-typedef struct sdljoystick
+typedef struct joystick //joystick info and state
 {
   uint8_t nbuttons;
   uint8_t naxes;
@@ -39,7 +16,7 @@ typedef struct sdljoystick
   uint32_t buttons;
   int16_t axes[8];
   uint8_t hats[8];
-} sdljoystick;
+} joystick;
 
 typedef struct drawcmd
 {
@@ -52,6 +29,9 @@ typedef struct drawcmd
   uint32_t dsize;
 }drawcmd;
 
+//Check for and copy an event if available
+//Data is copied into the provided event
+//returns 0 when there is none, 1 otherwise
 int get_event(MGJoyInputEvent *event){
   if ((uartctl[5] & 1) == 0)
     return 0;
@@ -72,7 +52,7 @@ int main(void){
   uartctl[10] = 1;
 
   MGJoyInputEvent ev;
-  sdljoystick js;
+  joystick js;
 
   mg_gfx_ctl[1] = 640;
   mg_gfx_ctl[2] = 400;
@@ -80,9 +60,7 @@ int main(void){
   mg_gfx_ctl[3] = 5;
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5;
   int i, cmdi = 0;
-  for (i = 0; i < 100; i++){
-    gfxcmd[i] = 0x0;
-  }
+
   volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
   pallette[0] = 0x00000000U;
   pallette[1] = 0x00ffffffU;
@@ -92,7 +70,7 @@ int main(void){
   //setup background
   gfxcmd[cmdi++] = 0x206;
   gfxcmd[cmdi++] = 0x20;
-  gfxcmd[cmdi++] = 100;
+  gfxcmd[cmdi++] = 0;
   gfxcmd[cmdi++] = 1;
   gfxcmd[cmdi++] = 1 << 16 | 1;
   gfxcmd[cmdi++] = 0;
@@ -121,9 +99,12 @@ int main(void){
     if (get_event(&ev)){
       output_string("Got event: ",1);
       if (ev.type == MG_JOYBUTTON && ev.num == 0 && ev.value == 0)
-        break;
+        break; //exit on button 0 release
       switch (ev.type){
         case MG_JOYAXISMOTION:
+        //Because we can't query the device for the amount of axes
+        //and we don't receive an initial state we have to dynamically
+        //expand the amount of axes we draw based on the events we receive
           if (js.naxes <= ev.num){
             for (; js.naxes <= ev.num; js.naxes++){
               axescmd[js.naxes].cmd = 0x206;
@@ -145,6 +126,7 @@ int main(void){
           axescmd[ev.num].dsize = 40 << 16 | temp;
           break;
         case MG_JOYHATMOTION:
+          //Just like the axes this creates hat draw commands
           if (js.nhats <= ev.num){
               for (; js.nhats <= ev.num; js.nhats++){
               hatscmd[js.nhats].cmd = 0x206;
@@ -166,13 +148,13 @@ int main(void){
             hatscmd[ev.num].pos = (ev.num * 80) + 30 << 16 | 330;
           } else {
             int x = 1, y = 1;
-            if ((ev.value & SDL_HAT_UP) != 0)
+            if ((ev.value & MG_HAT_UP) != 0)
               y = 0;
-            else if ((ev.value & SDL_HAT_DOWN) != 0)
+            else if ((ev.value & MG_HAT_DOWN) != 0)
               y = 2;
-            if ((ev.value & SDL_HAT_LEFT) != 0)
+            if ((ev.value & MG_HAT_LEFT) != 0)
               x = 0;
-            else if ((ev.value & SDL_HAT_RIGHT) != 0)
+            else if ((ev.value & MG_HAT_RIGHT) != 0)
               x = 2;
             output_int(x,1);
             output_char(' ',1);
@@ -181,7 +163,7 @@ int main(void){
           }
           break;
         case MG_JOYBUTTON:
-          if (js.nbuttons <= ev.num){
+          if (js.nbuttons <= ev.num){ //expand buttons
             js.nbuttons = ev.num+1;
             buttoncmd->size = js.nbuttons << 16 | 1;
           }

@@ -28,7 +28,7 @@ typedef struct drawcmd
   uint32_t dsize;
 }drawcmd;
 
-int16_t nabs(int16_t i){
+int16_t nabs(int16_t i){//absolute value
   return (i < 0)?-i:i;
 }
 
@@ -65,6 +65,7 @@ int main(void){
   gfxcmd[cmdi++] = 0;
   gfxcmd[cmdi++] = 640 << 16 | 400;
 
+  //Point placed at the mouse pointer position
   volatile drawcmd *mousepoint = (void*)&gfxcmd[cmdi];
   mousepoint->cmd = 0x206;
   mousepoint->mode = 0x20;
@@ -73,6 +74,7 @@ int main(void){
   mousepoint->size = 1 << 16 | 1;
   mousepoint->pos = 0;
   mousepoint->dsize = 3 << 16 | 3;
+  //Box indicating relative movement
   volatile drawcmd *trail = (void*)&gfxcmd[cmdi+7];
   trail->cmd = 0x206;
   trail->mode = 0x20;
@@ -86,18 +88,18 @@ int main(void){
   while (1){
     if (joydev->queuesize > 0){
       evbuff[1] = evdata[1];//The only part we need
+      joydev->queuesize = 1;
       if (ev.type == MG_MOUSEMOTION){
         int posx = axesdata[0], posy = axesdata[1];
         mousepoint->pos = posx << 16 | posy;
         int offx = ballsdata[0], offy = ballsdata[1];
-        if (offx!=0 || offy!=0){
+        if (offx!=0 || offy!=0){//update trail box
           trail->dsize = (nabs(offx)+1) << 16 | nabs(offy)+1;
           trail->pos = (posx+offx) << 16 | posy+offy;
         }
       }
       if (ev.type == MG_MOUSEBUTTON && ev.num == MG_BUTTON_RIGHT && ev.state == 0)
-        break;
-      joydev->queuesize = 1;
+        break;//exit on right button release
     }
   }
   joydev->enabled = 0;
