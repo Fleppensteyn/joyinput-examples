@@ -27,7 +27,7 @@ typedef struct drawcmd
   uint32_t size;
   uint32_t pos;
   uint32_t dsize;
-}drawcmd;
+} drawcmd;
 
 //Check for and copy an event if available
 //Data is copied into the provided event
@@ -61,13 +61,13 @@ int main(void){
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5;
   int i, cmdi = 0;
 
-  volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
-  pallette[0] = 0x00000000U;
-  pallette[1] = 0x00ffffffU;
-  pallette[2] = 0x00550000U;
-  pallette[3] = 0x0000aa00U;
+  volatile uint32_t *palette = (uint32_t*)mg_gfx_fb;
+  palette[0] = 0x00000000U;
+  palette[1] = 0x00ffffffU;
+  palette[2] = 0x00550000U;
+  palette[3] = 0x0000aa00U;
 
-  //setup background
+  //set up background
   gfxcmd[cmdi++] = 0x206;
   gfxcmd[cmdi++] = 0x20;
   gfxcmd[cmdi++] = 0;

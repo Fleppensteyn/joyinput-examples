@@ -44,7 +44,7 @@ typedef struct drawcmd //Helps with draw commands on the GPU
   uint32_t size;
   uint32_t pos;
   uint32_t dsize;
-}drawcmd;
+} drawcmd;
 
 void delaytime(int i){//Wastes some time
   volatile int t;
@@ -72,19 +72,41 @@ int main(void){
   js.nhats = joyinfo->hats >> 24;
   js.nballs = joyinfo->balls >> 24;
 
+  //Make sure we can actually draw this joysticks state
+  //These limits should not be a problem for most existing joysticks
+  if (js.naxes > 8 || js.nbuttons > 32 || js.nhats > 8){
+    output_string("Joystick layout breaks visualisation limits\n",1);
+    return 0; //Exit the program instead of littering the code with if statements
+  }
+
+  //gather data on initial state of axes
+  volatile int16_t *axesdata = (void*)&joydevbase[0x400];
+  for (i = 0; i < js.naxes; i++)
+    js.axes[i] = axesdata[i];
+
+  //gather data on initial state of buttons (always 0 on Linux)
+  volatile uint8_t *buttondata = (void*)&joydevbase[0x800];
+  for (i = 0; i <= (js.nbuttons - 1) >> 3; i++)
+    js.buttons += buttondata[i] << (i * 8);
+
+  //gather data on initial state of hats (always 0 on Linux)
+  volatile uint8_t *hatsdata = (void*)&joydevbase[0xc00];
+  for (i = 0; i < js.nhats; i++)
+    js.hats[i] = hatsdata[i];
+
   //initialise the graphics device
   mg_gfx_ctl[1] = 640;
   mg_gfx_ctl[2] = 400;
   mg_gfx_ctl[0] = 1;
-  mg_gfx_ctl[3] = 5;//Start the command buffer after the pallete and button texture
+  mg_gfx_ctl[3] = 5;//Start the command buffer after the palette and button texture
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5; //command buffer
 
   //We put all the colours we use at the start
-  volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
-  pallette[0] = 0x00000000U;//black
-  pallette[1] = 0x00ffffffU;//white
-  pallette[2] = 0x00550000U;//red
-  pallette[3] = 0x0000aa00U;//green
+  volatile uint32_t *palette = (uint32_t*)mg_gfx_fb;
+  palette[0] = 0x00000000U;//black
+  palette[1] = 0x00ffffffU;//white
+  palette[2] = 0x00550000U;//red
+  palette[3] = 0x0000aa00U;//green
 
   //First command clears the screen to black
   gfxcmd[cmdi++] = 0x206;
@@ -95,39 +117,33 @@ int main(void){
   gfxcmd[cmdi++] = 0; //position is 0,0
   gfxcmd[cmdi++] = 640 << 16 | 400;//Stretch 1 pixel to screen size
 
-  gfxcmd[cmdi++] = 0x102;//set a pallete of red/green
+  gfxcmd[cmdi++] = 0x102;//set a palette of red/green
   gfxcmd[cmdi++] = 2;//of size 2
   gfxcmd[cmdi++] = 2;//starting at offset 2
 
   //Location to store button data as a texture
   volatile uint32_t *gfx_buttondata = (uint32_t*)mg_gfx_fb + 4;
+  *gfx_buttondata = js.buttons; //store the initial button state
+
   volatile drawcmd *buttoncmd = (drawcmd*)&gfxcmd[cmdi];
   buttoncmd->cmd = 0x206;
-  buttoncmd->mode = 0x10001;//use 1 bit red/green pallete
+  buttoncmd->mode = 0x10001;//use 1 bit red/green palette
   buttoncmd->offset = 4; //Location of button state
   buttoncmd->scanlen = 32; //32 bits per line
   buttoncmd->size = js.nbuttons << 16 | 1; //only show existing buttons
   buttoncmd->pos = 0; //start at the origin
   buttoncmd->dsize = 640 << 16 | 20;//Stretch the bar to screen width
 
-  volatile uint8_t *buttondata = (void*)&joydevbase[0x800];
-  for (i = 0; i <= (js.nbuttons - 1) >> 3; i++)
-    js.buttons += buttondata[i] << (i * 8);
-  *gfx_buttondata = js.buttons;
 
-  //Set some commands up for axes/hats
+  //Set up locations of commands for axes/hats
   volatile drawcmd *axescmd = (drawcmd*)&gfxcmd[cmdi+7];
-  volatile drawcmd *hatscmd = &axescmd[8];
-  for (i = 0; i < 8; i++)
-    axescmd[i].cmd = 0x306;//Make the commands nops
+  volatile drawcmd *hatscmd = &axescmd[js.naxes];
 
-  volatile int16_t *axesdata = (void*)&joydevbase[0x400];
   //Axes stretch a single pixel into a white bar
   for (i = 0; i < js.naxes; i++){
-    js.axes[i] = axesdata[i];
     axescmd[i].cmd = 0x206;
     axescmd[i].mode = 0x20;//32-bit colour
-    axescmd[i].offset = 1;//Locatin of white value
+    axescmd[i].offset = 1;//Location of white value
     axescmd[i].scanlen = 1;
     axescmd[i].size = 1 << 16 | 1;
     axescmd[i].pos = ((i * 80) + 20) << 16 | 40;
@@ -135,8 +151,8 @@ int main(void){
   }
 
   //Hats show their state with a white block
+  //We initialise them centred for now
   for (i = 0; i < js.nhats; i++){
-    js.hats[i] = 0; //start hats centred
     hatscmd[i].cmd = 0x206;
     hatscmd[i].mode = 0x20;
     hatscmd[i].offset = 1;
@@ -170,13 +186,13 @@ int main(void){
             hatscmd[ev.num].pos = (ev.num * 80) + 30 << 16 | 330;
           } else {//Hat state is decoded to position the square
             int x = 1, y = 1;
-            if ((ev.value & MG_HAT_UP) != 0)
+            if (ev.value & MG_HAT_UP)
               y = 0;
-            else if ((ev.value & MG_HAT_DOWN) != 0)
+            else if (ev.value & MG_HAT_DOWN)
               y = 2;
-            if ((ev.value & MG_HAT_LEFT) != 0)
+            if (ev.value & MG_HAT_LEFT)
               x = 0;
-            else if ((ev.value & MG_HAT_RIGHT) != 0)
+            else if (ev.value & MG_HAT_RIGHT)
               x = 2;
             hatscmd[ev.num].pos = (ev.num * 80) + 10 + (x * 20) << 16 | 310 + (y * 20);
           }

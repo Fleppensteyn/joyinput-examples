@@ -27,7 +27,7 @@ typedef struct joydevinfo
 
 typedef struct joydev
 {
-  volatile uint8_t* base; //base of the device adress space
+  volatile uint8_t* base; //base of the device address space
   volatile joydevctl* ctl; //control structure simplifies access
   volatile joydevinfo* info; //struct to help access to device info
   volatile uint32_t* ev; //Points to memory space for events at the correct access width

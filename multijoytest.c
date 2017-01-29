@@ -52,14 +52,14 @@ int main(void){
   mg_gfx_ctl[3] = 5;
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 5;
 
-  volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
-  pallette[0] = 0x00000000U;
-  pallette[1] = 0x00ffffffU;
-  pallette[2] = 0x00ff0000U;
-  pallette[3] = 0x0000ff00U;
-  pallette[4] = 0x000000ffU;
+  volatile uint32_t *palette = (uint32_t*)mg_gfx_fb;
+  palette[0] = 0x00000000U;
+  palette[1] = 0x00ffffffU;
+  palette[2] = 0x00ff0000U;
+  palette[3] = 0x0000ff00U;
+  palette[4] = 0x000000ffU;
 
-  //setup background
+  //set up background
   gfxcmd[cmdi++] = 0x206;
   gfxcmd[cmdi++] = 0x20;
   gfxcmd[cmdi++] = 0;

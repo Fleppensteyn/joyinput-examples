@@ -26,7 +26,7 @@ typedef struct drawcmd
   uint32_t size;
   uint32_t pos;
   uint32_t dsize;
-}drawcmd;
+} drawcmd;
 
 int16_t nabs(int16_t i){//absolute value
   return (i < 0)?-i:i;
@@ -52,10 +52,10 @@ int main(void){
   mg_gfx_ctl[3] = 3;
   volatile uint32_t *gfxcmd = (uint32_t*)mg_gfx_fb + 3;
 
-  volatile uint32_t *pallette = (uint32_t*)mg_gfx_fb;
-  pallette[0] = 0x00000000U;
-  pallette[1] = 0x00ffffffU;
-  pallette[2] = 0x0000aa00U;
+  volatile uint32_t *palette = (uint32_t*)mg_gfx_fb;
+  palette[0] = 0x00000000U;
+  palette[1] = 0x00ffffffU;
+  palette[2] = 0x0000aa00U;
 
   gfxcmd[cmdi++] = 0x206;
   gfxcmd[cmdi++] = 0x20;
@@ -90,9 +90,9 @@ int main(void){
       evbuff[1] = evdata[1];//The only part we need
       joydev->queuesize = 1;
       if (ev.type == MG_MOUSEMOTION){
-        int posx = axesdata[0], posy = axesdata[1];
+        int posx = axesdata[0], posy = axesdata[1];//absolute mouse position
         mousepoint->pos = posx << 16 | posy;
-        int offx = ballsdata[0], offy = ballsdata[1];
+        int offx = ballsdata[0], offy = ballsdata[1]; //relative mouse movement
         if (offx!=0 || offy!=0){//update trail box
           trail->dsize = (nabs(offx)+1) << 16 | nabs(offy)+1;
           trail->pos = (posx+offx) << 16 | posy+offy;

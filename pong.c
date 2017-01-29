@@ -25,7 +25,7 @@ int main(void){
   if (x!=640 || y !=480){
     output_string("Failed to set resolution",1);
   }
-  //setup background
+  //set up background
   gfx_frame *bgf = gfx_alloc_frame(0,0);
   gfx_canvas *bgc = gfx_alloc_canvas(1,1,32);
   gfx_draw_pixel_rgb(bgc,0,0,0,0,0);
@@ -33,7 +33,7 @@ int main(void){
   gfx_resize_frame(bgf,640,480);
   gfx_show_frame(bgf);
 
-  //setup paddles and ball
+  //set up paddles and ball
   gfx_canvas *cwhite = gfx_alloc_canvas(1,1,32);
   gfx_draw_pixel_rgb(cwhite,0,0,255,255,255);
 
