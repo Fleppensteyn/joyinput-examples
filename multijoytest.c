@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "mtconf.h"
-#include "MGInputEvents.h"
 
 volatile uint8_t *joydevbase[4];
 

@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "mtconf.h"
-#include "MGInputEvents.h"
 #include "gfxlib.h"
 
 void delaytime(int i){//Wastes some time

@@ -73,7 +73,7 @@ int main(void){
     output_int(i+1,1);
     dev[i].type = dev[i].ctl->enabled;
     switch (dev[i].type){
-      case 1://Joystick
+      case MG_JOYSTICK://Joystick
         output_string(" is a joystick with:\n",1);
         output_uint((dev[i].info->axes >> 24),1);
         output_string(" axes, ",1);
@@ -84,8 +84,8 @@ int main(void){
         output_uint((dev[i].info->balls >> 24),1);
         output_string(" balls\n",1);
         break;
-      case 2: output_string(" is the mouse.\n",1); break;
-      case 3: output_string(" is a touch device.\n",1); break;
+      case MG_MOUSE: output_string(" is the mouse.\n",1); break;
+      case MG_TOUCH: output_string(" is a touch device.\n",1); break;
       case 0: output_string(" is not functioning?.\n",1); break;
       default: output_string(" is not a known type.\n",1); break;
     }
@@ -203,9 +203,9 @@ int main(void){
   for (i = 0; i < mg_joyinput_devcount; i++){
     output_string("Device state ",1);
     output_int(i+1,1);
-    if (dev[i].type == 3){
+    if (dev[i].type == MG_TOUCH){
       output_string(": No device state is kept for touch devices",1);
-    } else if (dev[i].type == 2){
+    } else if (dev[i].type == MG_MOUSE){
       output_string(": Last mouse position: [",1);
       output_int(dev[i].axes[0],1);
       output_char(',',1);
@@ -216,7 +216,7 @@ int main(void){
       output_int(dev[i].balls[1],1);
       output_string("] Final button state: ",1);
       output_uint(dev[i].buttons[0],1);
-    } else if (dev[i].type == 1){
+    } else if (dev[i].type == MG_JOYSTICK){
       output_string(": ",1);
       uint8_t c = dev[i].info->axes >> 24; //temporarily store axis count
       if (c){
